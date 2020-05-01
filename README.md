@@ -1,2 +1,0 @@
-# RayCaster
-Created with CodeSandbox
