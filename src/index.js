@@ -9,14 +9,13 @@ import createRenderer from "./renderer";
 
 const MOUSE_HORZ_SENSITIVITY = 0.5;
 const MOUSE_VERT_SENSITIVITY = 0.15;
-const CAMERA_RADIUS = 0.25;
 const TURN_INC = 180;
 const PITCH_INC = 10;
 const PITCH_LIMIT = 10;
 const MOVE_INC = 4;
 const HORIZONTAL_RESOLUTION = 320;
 
-let time = performance.now();
+let time = 0;
 let frameCount = 0;
 let fpsAccum = -1;
 
@@ -28,12 +27,15 @@ const camera = {
     viewY: 0,
     angle: 0,
     pitchY: 0,
+    radius: 0.25,
+    speedZ: 0,
     fov: 120, // Field ov view in degrees
 };
 
 const getMapCell = createCellGetter(map.walls, map.width);
 
 const keyMap = { };
+window.keyMap = keyMap;
 
 const canvas = document.createElement('canvas');
 canvas.tabIndex = 0;
@@ -69,7 +71,9 @@ canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointe
 canvas.addEventListener('keydown', (event) => keyMap[event.key.toLowerCase()] = true);
 canvas.addEventListener('keyup', (event) => keyMap[event.key.toLowerCase()] = false);
 canvas.onclick = function() {
-    canvas.requestPointerLock();
+    if (canvas.requestPointerLock) {
+        canvas.requestPointerLock();
+    }
 }
 
 let imgData = ctx.createImageData(canvas.width, canvas.height);
@@ -90,19 +94,35 @@ const resize = () => {
     }
 };
 
-const moveCamera = (camera, frontDelta, strafeDelta = 0) => {
-    const { x, y, viewX, viewY } = camera;
-    const dx = viewX * frontDelta - viewY * strafeDelta;
-    const dy = viewY * frontDelta + viewX * strafeDelta;
+const moveCamera = (camera, delta) => {
+    const { x = 0, y = 0, z = 0, radius } = camera;
+    const { x: dx = 0, y: dy = 0, z: dz = 0 } = delta;
+
     const newX = x + dx;
     const newY = y + dy;
-    let col = x | 0;
-    let row = y | 0;
-    let newCol = (newX + CAMERA_RADIUS * Math.sign(dx)) | 0;
-    let newRow = (newY + CAMERA_RADIUS * Math.sign(dy)) | 0;
-    // TODO: fix bug with the corners
+    const newZ = z + dz;
+
+    const col = x | 0;
+    const row = y | 0;
+
+    let newCol = (newX + radius * Math.sign(dx)) | 0;
+    let newRow = (newY + radius * Math.sign(dy)) | 0;
+
     if (!getMapCell(newCol, row)) camera.x = newX;
     if (!getMapCell(col, newRow)) camera.y = newY;
+
+    if (newZ < -0.5 + radius) camera.z = -0.5 + radius; // floor
+    else if (newZ > 0.5 - radius) camera.z = 0.5 - radius; // ceiling
+    else camera.z = newZ;
+};
+
+const moveCameraFPS = (camera, frontDelta, strafeDelta = 0) => {
+    const { viewX, viewY } = camera;
+    moveCamera(camera, {
+        x: viewX * frontDelta - viewY * strafeDelta,
+        y: viewY * frontDelta + viewX * strafeDelta,
+        z: 0,
+     });
 };
 
 const rotateCamera = (camera, angleOffset) => {
@@ -113,29 +133,30 @@ const rotateCamera = (camera, angleOffset) => {
 };
 
 const cameraCommands = {
-    w: (deltaTime) => moveCamera(camera, MOVE_INC * deltaTime, 0),
-    arrowup: (deltaTime) => moveCamera(camera, MOVE_INC * deltaTime, 0),
-    up: (deltaTime) => moveCamera(camera, MOVE_INC * deltaTime, 0),
-    s: (deltaTime) => moveCamera(camera, -MOVE_INC * deltaTime, 0),
-    arrowdown: (deltaTime) => moveCamera(camera, -MOVE_INC * deltaTime, 0),
-    down: (deltaTime) => moveCamera(camera, -MOVE_INC * deltaTime, 0),
+    w: (deltaTime) => moveCameraFPS(camera, MOVE_INC * deltaTime, 0),
+    arrowup: (deltaTime) => moveCameraFPS(camera, MOVE_INC * deltaTime, 0),
+    up: (deltaTime) => moveCameraFPS(camera, MOVE_INC * deltaTime, 0),
+    s: (deltaTime) => moveCameraFPS(camera, -MOVE_INC * deltaTime, 0),
+    arrowdown: (deltaTime) => moveCameraFPS(camera, -MOVE_INC * deltaTime, 0),
+    down: (deltaTime) => moveCameraFPS(camera, -MOVE_INC * deltaTime, 0),
     arrowleft: (deltaTime) => rotateCamera(camera, -TURN_INC * deltaTime),
     left: (deltaTime) => rotateCamera(camera, -TURN_INC * deltaTime),
     arrowright: (deltaTime) => rotateCamera(camera, TURN_INC * deltaTime),
     right: (deltaTime) => rotateCamera(camera, TURN_INC * deltaTime),
-    a: (deltaTime) => moveCamera(camera, 0, -MOVE_INC * deltaTime),
-    d: (deltaTime) => moveCamera(camera, 0, MOVE_INC * deltaTime),
+    a: (deltaTime) => moveCameraFPS(camera, 0, -MOVE_INC * deltaTime),
+    d: (deltaTime) => moveCameraFPS(camera, 0, +MOVE_INC * deltaTime),
     q: (deltaTime) => camera.pitchY = clamp(camera.pitchY + PITCH_INC * deltaTime, -PITCH_LIMIT, PITCH_LIMIT),
     e: (deltaTime) => camera.pitchY = clamp(camera.pitchY - PITCH_INC * deltaTime, -PITCH_LIMIT, PITCH_LIMIT),
-    z: (deltaTime) => camera.z = clamp(camera.z - MOVE_INC * deltaTime, -10, 10),
-    x: (deltaTime) => camera.z = clamp(camera.z + MOVE_INC * deltaTime, -10, 10),
+    z: (deltaTime) => moveCamera(camera, { z: -MOVE_INC * deltaTime }),
+    x: (deltaTime) => moveCamera(camera, { z: +MOVE_INC * deltaTime }),
+    ' ': () => { if (camera.speedZ === 0) camera.speedZ = 0.1; },
 };
 
 const animationLoop = (timeStep = 0) => {
     resize();
     const now = timeStep * 0.001; // to senconds
     const deltaTime = now - time;
-    const fps = 1 / deltaTime;
+    const fps = deltaTime > 0 ? 1 / deltaTime : 0;
     frameCount++;
     fpsAccum = fpsAccum < 0 ? fps : fpsAccum + fps;
     time = now;
@@ -147,6 +168,13 @@ const animationLoop = (timeStep = 0) => {
     Object.keys(keyMap)
         .filter(key => keyMap[key] && cameraCommands[key])
         .forEach(key => cameraCommands[key](deltaTime));
+
+    camera.z += camera.speedZ;
+    camera.speedZ -= 0.9 * deltaTime;
+    if (camera.z < 0) {
+        camera.speedZ = 0;
+        camera.z = 0;
+    }
 
     ctx.font = '10px Monaco';
     ctx.fillStyle = '#000000';
