@@ -9,11 +9,6 @@ body {
     background-color: #000000;
 }
 
-.main {
-    display: flex;
-    height: 100%;
-}
-
 #app {
     position: relative;
     /* width: 1024px; */

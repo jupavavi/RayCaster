@@ -35,9 +35,9 @@ const camera = {
 const getMapCell = createCellGetter(map.walls, map.width);
 
 const keyMap = { };
-window.keyMap = keyMap;
 
 const canvas = document.createElement('canvas');
+document.getElementById('app').appendChild(canvas);
 canvas.tabIndex = 0;
 canvas.focus();
 canvas.id = 'canvas';
@@ -48,20 +48,19 @@ ctx.mozImageSmoothingEnabled = false;
 ctx.webkitImageSmoothingEnabled = false;
 ctx.msImageSmoothingEnabled = false;
 
-const updatePosition = ({ movementX, movementY }) => {
+const updateCamere = ({ movementX, movementY }) => {
     rotateCamera(camera, TURN_INC * MOUSE_HORZ_SENSITIVITY * (movementX / canvas.width));
     camera.pitchY = clamp(camera.pitchY - MOUSE_VERT_SENSITIVITY * PITCH_INC * (movementY / canvas.height), -PITCH_LIMIT, PITCH_LIMIT);
 };
 
 const lockChangeAlert = () => {
     if (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas) {
-        document.addEventListener("mousemove", updatePosition, false);
+        document.addEventListener("mousemove", updateCamere, false);
     } else {
-        document.removeEventListener("mousemove", updatePosition, false);
+        document.removeEventListener("mousemove", updateCamere, false);
     }
 }
 
-document.getElementById('app').appendChild(canvas);
 document.exitPointerLock = document.exitPointerLock || document.mozExitPointerLock;
 document.addEventListener('pointerlockchange', lockChangeAlert, false);
 document.addEventListener('mozpointerlockchange', lockChangeAlert, false);
