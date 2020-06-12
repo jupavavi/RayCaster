@@ -93,26 +93,28 @@ const resize = () => {
     }
 };
 
+const isWall = (map, x, y) => !!getMapCell((x | 0), (y | 0));
+
 const moveCamera = (camera, delta) => {
     const { x = 0, y = 0, z = 0, radius } = camera;
-    const { x: dx = 0, y: dy = 0, z: dz = 0 } = delta;
+    const { x: dx = 0, y: dy = 0, dz = 0 } = delta;
 
-    const newX = x + dx;
-    const newY = y + dy;
-    const newZ = z + dz;
+    let signX = Math.sign(dx);
+    let signY = Math.sign(dy);
 
-    const col = x | 0;
-    const row = y | 0;
+    signX = signX ? signX : -signY;
+    signY = signY ? signY : signX;
+    const x1 = (x + radius * signX);
+    const y1 = (y - radius * signY);
+    const x2 = (x - radius * signX);
+    const y2 = (y + radius * signY);
 
-    let newCol = (newX + radius * Math.sign(dx)) | 0;
-    let newRow = (newY + radius * Math.sign(dy)) | 0;
+    if (!isWall(map, x1 + dx, y1) && !isWall(map, x1 + dx, y2)) camera.x = x + dx;
+    if (!isWall(map, x2, y2 + dy) && !isWall(map, x1, y2 + dy)) camera.y = y + dy;
 
-    if (!getMapCell(newCol, row)) camera.x = newX;
-    if (!getMapCell(col, newRow)) camera.y = newY;
-
-    if (newZ < -0.5 + radius) camera.z = -0.5 + radius; // floor
-    else if (newZ > 0.5 - radius) camera.z = 0.5 - radius; // ceiling
-    else camera.z = newZ;
+    if (z + dz < -0.5 + radius) camera.z = -0.5 + radius; // floor
+    else if (z + dz > 0.5 - radius) camera.z = 0.5 - radius; // ceiling
+    else camera.z = z + dz;
 };
 
 const moveCameraFPS = (camera, frontDelta, strafeDelta = 0) => {
@@ -160,7 +162,7 @@ const animationLoop = (timeStep = 0) => {
     fpsAccum = fpsAccum < 0 ? fps : fpsAccum + fps;
     time = now;
     
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    //ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     renderer(camera);
     ctx.putImageData(imgData, 0, 0);
 

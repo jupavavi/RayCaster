@@ -30,8 +30,8 @@ export const verticalCaster = (outHitData = {}, camera, ray, cellGetter) => {
     let col = x | 0;
     let row = y | 0;
 
-    let stepX = rayX < 0 ? -1 : 1;
-    let stepY = rayY < 0 ? -1 : 1;
+    const stepX = rayX < 0 ? -1 : 1;
+    const stepY = rayY < 0 ? -1 : 1;
     let sideDistX = (rayX < 0 ? (x - col) : (col + 1 - x)) * deltaDistX;
     let sideDistY = (rayY < 0 ? (y - row) : (row + 1 - y)) * deltaDistY;
     let side = 0;
@@ -50,21 +50,21 @@ export const verticalCaster = (outHitData = {}, camera, ray, cellGetter) => {
         //Check if ray has hit a wall
     } while (!cellGetter(col, row));
 
-    const dx = side === 0 ? (col - x + (1 - stepX) / 2) : col - x;
-    const dy = side === 1 ? (row - y + (1 - stepY) / 2) : row - y;
+    const hitDistance = side === 0 ? (sideDistX - deltaDistX) : (sideDistY - deltaDistY);
+    const hitX = x + rayX * hitDistance;
+    const hitY = y + rayY * hitDistance;
+    const projDist = side === 0 ? ((hitX - x) / rayX) : ((hitY - y) / rayY);
 
-    const projDist = side === 0 ? (dx / rayX) : (dy / rayY);
-
-    const tx = projDist * rayX + x - col;
-    const ty = projDist * rayY + y - row;
+    const tx = hitX - col;
+    const ty = hitY - row;
 
     outHitData.col = col;
     outHitData.row = row;
     outHitData.projDist = projDist;
     outHitData.side = side;
     outHitData.texX = side === 1 ? tx : ty;
-    outHitData.hitX = tx + col;
-    outHitData.hitY = ty + row;
+    outHitData.hitX = hitX;
+    outHitData.hitY = hitY;
 
     return outHitData;
 }
